@@ -54,6 +54,7 @@ secrets:
 - `runner_group`: Self-hosted runner group name.
 - `source_path`: Source path inside the checked-out repository. Default `.`.
 - `exclude_dirs`: Comma-separated directory exclusions for signing and deployment.
+- `signing_exclude_dirs`: Comma-separated directory exclusions used only during signing and signature verification.
 - `exclude_files`: Comma-separated file exclusions for deployment.
 - `file_match`: Comma-separated PowerShell file glob list for signing.
 - `timestamp_server`: Authenticode timestamp server URL.
@@ -97,6 +98,7 @@ jobs:
 - Composite actions own implementation details.
 - Application repositories own deployment-specific values.
 - Certificate cleanup stays enabled by default to avoid leaving certificates on self-hosted runners.
+- Signing exclusions intentionally omit `_work` because GitHub runner workspace paths contain `_work`, and excluding it would skip the real repository files.
 
 ## Notes
 

@@ -19,3 +19,4 @@ All notable changes to this repository will be documented in this file.
 - Initial public release for reusable Mennotech GitHub workflows
 - Primary supported entry point is `.github/workflows/sign-and-deploy-windows.yml`
 - Intended for Windows self-hosted runners and PowerShell-based deployments
+- Signing exclusions now use a separate default list so GitHub runner `_work` paths do not suppress signing
