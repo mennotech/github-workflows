@@ -38,7 +38,13 @@ The reusable workflow expects the caller repository to provide these secrets:
 - `CODESIGN_PFX_BASE64`
 - `CODESIGN_PFX_PASSWORD`
 
-Use `secrets: inherit` from the caller workflow if those secrets already exist in the calling repository or organization.
+Pass these secrets explicitly from the caller workflow:
+
+```yaml
+secrets:
+  CODESIGN_PFX_BASE64: ${{ secrets.CODESIGN_PFX_BASE64 }}
+  CODESIGN_PFX_PASSWORD: ${{ secrets.CODESIGN_PFX_PASSWORD }}
+```
 
 ## Workflow Inputs
 
@@ -74,7 +80,9 @@ jobs:
     uses: mennotech/github-workflows/.github/workflows/sign-and-deploy-windows.yml@v1
     permissions:
       contents: read
-    secrets: inherit
+    secrets:
+      CODESIGN_PFX_BASE64: ${{ secrets.CODESIGN_PFX_BASE64 }}
+      CODESIGN_PFX_PASSWORD: ${{ secrets.CODESIGN_PFX_PASSWORD }}
     with:
       runner_group: Domain Controllers
       destination_path: C:\\Scripts\\my-github-hosted-script

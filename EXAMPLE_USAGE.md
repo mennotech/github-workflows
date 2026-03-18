@@ -28,7 +28,9 @@ jobs:
     uses: mennotech/github-workflows/.github/workflows/sign-and-deploy-windows.yml@v1
     permissions:
       contents: read
-    secrets: inherit
+    secrets:
+      CODESIGN_PFX_BASE64: ${{ secrets.CODESIGN_PFX_BASE64 }}
+      CODESIGN_PFX_PASSWORD: ${{ secrets.CODESIGN_PFX_PASSWORD }}
     with:
       runner_group: SCS Domain Controllers
       destination_path: C:\\Scripts\\exchange-apply-address-book-policy
@@ -80,7 +82,9 @@ jobs:
     uses: mennotech/github-workflows/.github/workflows/sign-and-deploy-windows.yml@v1
     permissions:
       contents: read
-    secrets: inherit
+    secrets:
+      CODESIGN_PFX_BASE64: ${{ secrets.CODESIGN_PFX_BASE64 }}
+      CODESIGN_PFX_PASSWORD: ${{ secrets.CODESIGN_PFX_PASSWORD }}
     with:
       runner_group: SCS Domain Controllers
       destination_path: C:\\Scripts\\exchange-apply-address-book-policy
