@@ -1,0 +1,50 @@
+name: Validate Workflows
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate_yaml:
+    name: Validate YAML syntax
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Parse workflow YAML files
+        shell: bash
+        run: |
+          ruby <<'RUBY'
+          require 'yaml'
+
+          files = Dir.glob('.github/workflows/*.yml').sort
+          abort('No workflow files found.') if files.empty?
+
+          files.each do |file_path|
+            YAML.load_file(file_path)
+            puts "Validated #{file_path}"
+          end
+          RUBY
+
+      - name: Verify reusable workflow references published actions
+        shell: python
+        run: |
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/sign-and-deploy-windows.yml').read_text(encoding='utf-8')
+          required_refs = [
+              'mennotech/github-actions/import-codesigning-cert-windows@v1',
+              'mennotech/github-actions/codesign-files-windows@v1',
+              'mennotech/github-actions/deploy-files-windows@v1',
+          ]
+
+          missing = [ref for ref in required_refs if ref not in workflow]
+          if missing:
+              raise SystemExit(f'Missing action references: {missing}')
+
+          print('Reusable workflow references expected published actions.')

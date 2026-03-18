@@ -1,0 +1,116 @@
+name: Sign And Deploy Windows
+
+on:
+  workflow_call:
+    inputs:
+      runner_group:
+        description: Self-hosted Windows runner group name.
+        required: true
+        type: string
+      source_path:
+        description: Source path inside the checked-out caller repository.
+        required: false
+        default: .
+        type: string
+      destination_path:
+        description: Destination path on the Windows target machine.
+        required: true
+        type: string
+      exclude_dirs:
+        description: Comma-separated directories to exclude from signing and deployment.
+        required: false
+        default: .git,.github,_work,logs
+        type: string
+      exclude_files:
+        description: Comma-separated file patterns to exclude from deployment.
+        required: false
+        default: '*.crt,Config.json'
+        type: string
+      file_match:
+        description: Comma-separated file patterns to sign.
+        required: false
+        default: '*.ps1,*.psm1,*.psd1'
+        type: string
+      recurse:
+        description: Recurse into subdirectories when searching for files to sign.
+        required: false
+        default: true
+        type: boolean
+      timestamp_server:
+        description: Authenticode timestamp server URL.
+        required: false
+        default: http://timestamp.digicert.com
+        type: string
+      robocopy_options:
+        description: Comma-separated additional robocopy options.
+        required: false
+        default: /R:2,/W:2,/NDL,/NFL,/NP
+        type: string
+    secrets:
+      CODESIGN_PFX_BASE64:
+        required: true
+      CODESIGN_PFX_PASSWORD:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  sign_and_deploy:
+    name: Sign scripts and deploy
+    runs-on:
+      group: ${{ inputs.runner_group }}
+      labels:
+        - self-hosted
+        - windows
+
+    steps:
+      - name: Checkout caller repository
+        uses: actions/checkout@v4
+
+      - name: Import code-signing certificate
+        id: import_certificate
+        uses: mennotech/github-actions/import-codesigning-cert-windows@v1
+        with:
+          pfx_base64: ${{ secrets.CODESIGN_PFX_BASE64 }}
+          pfx_password: ${{ secrets.CODESIGN_PFX_PASSWORD }}
+
+      - name: Sign PowerShell files
+        uses: mennotech/github-actions/codesign-files-windows@v1
+        with:
+          path: ${{ inputs.source_path }}
+          timestamp_server: ${{ inputs.timestamp_server }}
+          recurse: ${{ inputs.recurse }}
+          file_match: ${{ inputs.file_match }}
+          exclude_dirs: ${{ inputs.exclude_dirs }}
+          cert_thumbprint: ${{ steps.import_certificate.outputs.certificate_thumbprint }}
+          cleanup_certificate: true
+
+      - name: Verify PowerShell signatures
+        uses: mennotech/github-actions/codesign-files-windows@v1
+        with:
+          path: ${{ inputs.source_path }}
+          recurse: ${{ inputs.recurse }}
+          file_match: ${{ inputs.file_match }}
+          exclude_dirs: ${{ inputs.exclude_dirs }}
+          test_only: true
+          fail_on_invalid: true
+
+      - name: Deploy files
+        uses: mennotech/github-actions/deploy-files-windows@v1
+        with:
+          source_path: ${{ inputs.source_path }}
+          destination_path: ${{ inputs.destination_path }}
+          exclude_dirs: ${{ inputs.exclude_dirs }}
+          exclude_files: ${{ inputs.exclude_files }}
+          robocopy_options: ${{ inputs.robocopy_options }}
+
+      - name: Verify deployment state
+        uses: mennotech/github-actions/deploy-files-windows@v1
+        with:
+          source_path: ${{ inputs.source_path }}
+          destination_path: ${{ inputs.destination_path }}
+          exclude_dirs: ${{ inputs.exclude_dirs }}
+          exclude_files: ${{ inputs.exclude_files }}
+          robocopy_options: ${{ inputs.robocopy_options }}
+          test_only: true
