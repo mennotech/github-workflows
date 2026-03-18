@@ -76,8 +76,8 @@ jobs:
       contents: read
     secrets: inherit
     with:
-      runner_group: SCS Domain Controllers
-      destination_path: C:\\Scripts\\exchange-apply-address-book-policy
+      runner_group: Domain Controllers
+      destination_path: C:\\Scripts\\my-github-hosted-script
       exclude_dirs: .git,.github,_work,logs
       exclude_files: *.crt,Config.json
       timestamp_server: http://timestamp.digicert.com
