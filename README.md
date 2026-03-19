@@ -50,16 +50,16 @@ secrets:
 
 `sign-and-deploy-windows.yml` supports the following caller inputs:
 
-- `destination_path`: Windows destination path to deploy to.
-- `runner_group`: Self-hosted runner group name.
-- `source_path`: Source path inside the checked-out repository. Default `.`.
-- `exclude_dirs`: Comma-separated additional directory exclusions for application content such as `logs` or other directories the deployed script generates and must preserve during upgrades. Default is empty.
-- `include_github_directory`: Set to `true` only when `.github` content should be signed and deployed.
-- `exclude_files`: Comma-separated additional file exclusions for generated or environment-specific files that must not be overwritten during upgrades. Default is empty.
-- `file_match`: Comma-separated PowerShell file glob list for signing.
-- `timestamp_server`: Authenticode timestamp server URL.
-- `robocopy_options`: Comma-separated robocopy options.
-- `recurse`: Whether signing should recurse into subdirectories.
+- `destination_path`: Windows destination path to deploy to. Required.
+- `runner_group`: Self-hosted runner group name. Required.
+- `source_path`: Source path inside the checked-out repository. Default: `.`.
+- `exclude_dirs`: Comma-separated additional directory exclusions for application content such as `logs` or other directories the deployed script generates and must preserve during upgrades. Default: empty.
+- `include_github_directory`: Set to `true` only when `.github` content should be signed and deployed. Default: `false`.
+- `exclude_files`: Comma-separated additional file exclusions for generated or environment-specific files that must not be overwritten during upgrades. Default: empty.
+- `file_match`: Comma-separated PowerShell file glob list for signing. Default: `*.ps1,*.psm1,*.psd1`.
+- `timestamp_server`: Authenticode timestamp server URL. Default: `http://timestamp.digicert.com`.
+- `robocopy_options`: Comma-separated robocopy options. Default: `/R:2,/W:2,/NDL,/NFL,/NP`.
+- `recurse`: Whether signing should recurse into subdirectories. Default: `true`.
 
 ## Example Consumer Workflow
 
