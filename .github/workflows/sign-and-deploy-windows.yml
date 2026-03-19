@@ -22,11 +22,6 @@ on:
         required: false
         default: .git,.github,_work,logs
         type: string
-      signing_exclude_dirs:
-        description: Comma-separated directories to exclude only from signing and signature verification.
-        required: false
-        default: .git,.github,logs
-        type: string
       exclude_files:
         description: Comma-separated file patterns to exclude from deployment.
         required: false
@@ -88,7 +83,7 @@ jobs:
           timestamp_server: ${{ inputs.timestamp_server }}
           recurse: ${{ inputs.recurse }}
           file_match: ${{ inputs.file_match }}
-          exclude_dirs: ${{ inputs.signing_exclude_dirs }}
+          exclude_dirs: ${{ inputs.exclude_dirs }}
           cert_thumbprint: ${{ steps.import_certificate.outputs.certificate_thumbprint }}
           cleanup_certificate: true
 
@@ -98,7 +93,7 @@ jobs:
           path: ${{ inputs.source_path }}
           recurse: ${{ inputs.recurse }}
           file_match: ${{ inputs.file_match }}
-          exclude_dirs: ${{ inputs.signing_exclude_dirs }}
+          exclude_dirs: ${{ inputs.exclude_dirs }}
           test_only: true
           fail_on_invalid: true
 

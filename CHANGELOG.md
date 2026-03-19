@@ -4,6 +4,10 @@ All notable changes to this repository will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Reverted the temporary signing exclusion workaround and now rely on `mennotech/github-actions@v1` including the `v1.0.1` path-matching fix.
+
 ## [1.0.0] - 2026-03-18
 
 ### Added
@@ -19,4 +23,3 @@ All notable changes to this repository will be documented in this file.
 - Initial public release for reusable Mennotech GitHub workflows
 - Primary supported entry point is `.github/workflows/sign-and-deploy-windows.yml`
 - Intended for Windows self-hosted runners and PowerShell-based deployments
-- Signing exclusions now use a separate default list so GitHub runner `_work` paths do not suppress signing

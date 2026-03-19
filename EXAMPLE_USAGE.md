@@ -62,8 +62,6 @@ The caller repository only supplies:
 - optional exclusion overrides
 - inherited code-signing secrets
 
-By default, signing exclusions are narrower than deployment exclusions. This is intentional because GitHub runner workspace paths include `_work`, and excluding `_work` during signing would filter out the actual checked-out repository files.
-
 ## Exchange Apply Address Book Policy Example
 
 Based on the current deployment in `exchange-apply-address-book-policy`, the equivalent caller workflow becomes:
