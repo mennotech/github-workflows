@@ -86,7 +86,7 @@ jobs:
       CODESIGN_PFX_PASSWORD: ${{ secrets.CODESIGN_PFX_PASSWORD }}
     with:
       runner_group: Domain Controllers
-      destination_path: C:\\Scripts\\my-github-hosted-script
+      destination_path: C:\\Scripts\\MyApp
       exclude_dirs: logs
       exclude_files: *.crt,Config.json
       timestamp_server: http://timestamp.digicert.com

@@ -10,7 +10,7 @@ This repository provides reusable workflows. Calling repositories should pass co
 
 ## Example: Application Repository
 
-The application repository should keep its workflow thin:
+The application repository should keep its workflow thin.
 
 ```yaml
 name: Sign and Deploy
@@ -32,11 +32,10 @@ jobs:
       CODESIGN_PFX_BASE64: ${{ secrets.CODESIGN_PFX_BASE64 }}
       CODESIGN_PFX_PASSWORD: ${{ secrets.CODESIGN_PFX_PASSWORD }}
     with:
-      runner_group: SCS Domain Controllers
-      destination_path: C:\\Scripts\\exchange-apply-address-book-policy
+      runner_group: Domain Controllers
+      destination_path: C:\\Scripts\\MyApp
       exclude_dirs: logs
       exclude_files: *.crt,Config.json
-      timestamp_server: http://timestamp.digicert.com
 ```
 
 ## Migration from Inline PowerShell
