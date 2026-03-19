@@ -64,7 +64,7 @@ The caller repository only supplies:
 
 `.github` is excluded by default by the reusable workflow. Set `include_github_directory: true` only when `.github` content is part of the deployable payload.
 `.git` is enforced as an exclusion by the underlying actions and does not need to be passed from the caller repository.
-`exclude_dirs` and `exclude_files` are additive inputs. Use them only for repository-specific content such as `logs`, generated outputs, or sensitive runtime files you do not want deployed.
+`exclude_dirs` and `exclude_files` are additive inputs. Their main purpose is to preserve directories and files that the deployed script generates and still needs after an upgrade. Use them for repository-specific content such as `logs`, generated outputs, certificates, or environment-specific config that should not be overwritten.
 
 ## Exchange Apply Address Book Policy Example
 

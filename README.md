@@ -53,9 +53,9 @@ secrets:
 - `destination_path`: Windows destination path to deploy to.
 - `runner_group`: Self-hosted runner group name.
 - `source_path`: Source path inside the checked-out repository. Default `.`.
-- `exclude_dirs`: Comma-separated additional directory exclusions for application content such as `logs`. Default is empty.
+- `exclude_dirs`: Comma-separated additional directory exclusions for application content such as `logs` or other directories the deployed script generates and must preserve during upgrades. Default is empty.
 - `include_github_directory`: Set to `true` only when `.github` content should be signed and deployed.
-- `exclude_files`: Comma-separated additional file exclusions for deployment. Default is empty.
+- `exclude_files`: Comma-separated additional file exclusions for generated or environment-specific files that must not be overwritten during upgrades. Default is empty.
 - `file_match`: Comma-separated PowerShell file glob list for signing.
 - `timestamp_server`: Authenticode timestamp server URL.
 - `robocopy_options`: Comma-separated robocopy options.
@@ -101,7 +101,7 @@ jobs:
 - This workflow relies on `mennotech/github-actions@v1` for the low-level signing and deployment mechanics.
 - `.github` is excluded by default at the workflow layer, but callers can opt in with `include_github_directory: true` when that content is part of the deployable payload.
 - `.git` is enforced as an exclusion by the underlying `mennotech/github-actions` actions, so callers do not need to pass it in workflow inputs.
-- `exclude_dirs` and `exclude_files` are additive caller overrides. This workflow supplies the `.github` default at the workflow layer rather than relying on broad defaults in the underlying actions.
+- `exclude_dirs` and `exclude_files` are additive caller overrides. Their main purpose is to avoid clobbering generated directories and files that a deployed script needs to keep across upgrades. This workflow supplies the `.github` default at the workflow layer rather than relying on broad defaults in the underlying actions.
 
 ## Notes
 
