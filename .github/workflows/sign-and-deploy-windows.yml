@@ -18,14 +18,19 @@ on:
         required: true
         type: string
       exclude_dirs:
-        description: Comma-separated directories to exclude from signing and deployment.
+        description: Comma-separated additional directories to exclude from signing and deployment.
         required: false
-        default: .git,.github,_work,logs
+        default: ''
         type: string
-      exclude_files:
-        description: Comma-separated file patterns to exclude from deployment.
+      include_github_directory:
+        description: Include the .github directory in signing and deployment instead of excluding it by default.
         required: false
-        default: '*.crt,Config.json'
+        default: false
+        type: boolean
+      exclude_files:
+        description: Comma-separated additional file patterns to exclude from deployment.
+        required: false
+        default: ''
         type: string
       file_match:
         description: Comma-separated file patterns to sign.
@@ -69,6 +74,40 @@ jobs:
       - name: Checkout caller repository
         uses: actions/checkout@v4
 
+      - name: Resolve effective directory exclusions
+        id: exclusion_config
+        shell: pwsh
+        run: |
+          $effectiveExcludeDirs = [System.Collections.Generic.List[string]]::new()
+
+          foreach ($excludeDir in '${{ inputs.exclude_dirs }}' -split ',') {
+            $normalizedExcludeDir = $excludeDir.Trim()
+            if ([string]::IsNullOrWhiteSpace($normalizedExcludeDir)) {
+              continue
+            }
+
+            $alreadyIncluded = $effectiveExcludeDirs | Where-Object {
+              $_.Equals($normalizedExcludeDir, [System.StringComparison]::OrdinalIgnoreCase)
+            }
+
+            if (-not $alreadyIncluded) {
+              $effectiveExcludeDirs.Add($normalizedExcludeDir)
+            }
+          }
+
+          if ('${{ inputs.include_github_directory }}' -ne 'true') {
+            $githubDirectoryIncluded = $effectiveExcludeDirs | Where-Object {
+              $_.Equals('.github', [System.StringComparison]::OrdinalIgnoreCase)
+            }
+
+            if (-not $githubDirectoryIncluded) {
+              $effectiveExcludeDirs.Add('.github')
+            }
+          }
+
+          "exclude_dirs=$($effectiveExcludeDirs -join ',')" >> $env:GITHUB_OUTPUT
+          "exclude_files=${{ inputs.exclude_files }}" >> $env:GITHUB_OUTPUT
+
       - name: Import code-signing certificate
         id: import_certificate
         uses: mennotech/github-actions/import-codesigning-cert-windows@v1
@@ -83,7 +122,7 @@ jobs:
           timestamp_server: ${{ inputs.timestamp_server }}
           recurse: ${{ inputs.recurse }}
           file_match: ${{ inputs.file_match }}
-          exclude_dirs: ${{ inputs.exclude_dirs }}
+          exclude_dirs: ${{ steps.exclusion_config.outputs.exclude_dirs }}
           cert_thumbprint: ${{ steps.import_certificate.outputs.certificate_thumbprint }}
           cleanup_certificate: true
 
@@ -93,7 +132,7 @@ jobs:
           path: ${{ inputs.source_path }}
           recurse: ${{ inputs.recurse }}
           file_match: ${{ inputs.file_match }}
-          exclude_dirs: ${{ inputs.exclude_dirs }}
+          exclude_dirs: ${{ steps.exclusion_config.outputs.exclude_dirs }}
           test_only: true
           fail_on_invalid: true
 
@@ -102,8 +141,8 @@ jobs:
         with:
           source_path: ${{ inputs.source_path }}
           destination_path: ${{ inputs.destination_path }}
-          exclude_dirs: ${{ inputs.exclude_dirs }}
-          exclude_files: ${{ inputs.exclude_files }}
+          exclude_dirs: ${{ steps.exclusion_config.outputs.exclude_dirs }}
+          exclude_files: ${{ steps.exclusion_config.outputs.exclude_files }}
           robocopy_options: ${{ inputs.robocopy_options }}
 
       - name: Verify deployment state
@@ -111,7 +150,7 @@ jobs:
         with:
           source_path: ${{ inputs.source_path }}
           destination_path: ${{ inputs.destination_path }}
-          exclude_dirs: ${{ inputs.exclude_dirs }}
-          exclude_files: ${{ inputs.exclude_files }}
+          exclude_dirs: ${{ steps.exclusion_config.outputs.exclude_dirs }}
+          exclude_files: ${{ steps.exclusion_config.outputs.exclude_files }}
           robocopy_options: ${{ inputs.robocopy_options }}
           test_only: true

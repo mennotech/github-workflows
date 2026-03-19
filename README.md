@@ -53,8 +53,9 @@ secrets:
 - `destination_path`: Windows destination path to deploy to.
 - `runner_group`: Self-hosted runner group name.
 - `source_path`: Source path inside the checked-out repository. Default `.`.
-- `exclude_dirs`: Comma-separated directory exclusions for signing and deployment.
-- `exclude_files`: Comma-separated file exclusions for deployment.
+- `exclude_dirs`: Comma-separated additional directory exclusions for application content such as `logs`. Default is empty.
+- `include_github_directory`: Set to `true` only when `.github` content should be signed and deployed.
+- `exclude_files`: Comma-separated additional file exclusions for deployment. Default is empty.
 - `file_match`: Comma-separated PowerShell file glob list for signing.
 - `timestamp_server`: Authenticode timestamp server URL.
 - `robocopy_options`: Comma-separated robocopy options.
@@ -86,7 +87,7 @@ jobs:
     with:
       runner_group: Domain Controllers
       destination_path: C:\\Scripts\\my-github-hosted-script
-      exclude_dirs: .git,.github,_work,logs
+      exclude_dirs: logs
       exclude_files: *.crt,Config.json
       timestamp_server: http://timestamp.digicert.com
 ```
@@ -96,8 +97,11 @@ jobs:
 - Reusable workflows own orchestration and guardrails.
 - Composite actions own implementation details.
 - Application repositories own deployment-specific values.
-- Certificate cleanup stays enabled by default to avoid leaving certificates on self-hosted runners.
-- This workflow relies on `mennotech/github-actions@v1`, which now includes the `v1.0.1` path-matching fix for signing on GitHub runners.
+- Certificate cleanup is explicitly enabled by this workflow to avoid leaving certificates on self-hosted runners.
+- This workflow relies on `mennotech/github-actions@v1` for the low-level signing and deployment mechanics.
+- `.github` is excluded by default at the workflow layer, but callers can opt in with `include_github_directory: true` when that content is part of the deployable payload.
+- `.git` is enforced as an exclusion by the underlying `mennotech/github-actions` actions, so callers do not need to pass it in workflow inputs.
+- `exclude_dirs` and `exclude_files` are additive caller overrides. This workflow supplies the `.github` default at the workflow layer rather than relying on broad defaults in the underlying actions.
 
 ## Notes
 

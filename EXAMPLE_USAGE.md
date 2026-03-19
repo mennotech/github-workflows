@@ -34,7 +34,7 @@ jobs:
     with:
       runner_group: SCS Domain Controllers
       destination_path: C:\\Scripts\\exchange-apply-address-book-policy
-      exclude_dirs: .git,.github,_work,logs
+      exclude_dirs: logs
       exclude_files: *.crt,Config.json
       timestamp_server: http://timestamp.digicert.com
 ```
@@ -59,8 +59,12 @@ The caller repository only supplies:
 
 - `runner_group`
 - `destination_path`
-- optional exclusion overrides
-- inherited code-signing secrets
+- optional additional exclusion overrides
+- explicit code-signing secrets
+
+`.github` is excluded by default by the reusable workflow. Set `include_github_directory: true` only when `.github` content is part of the deployable payload.
+`.git` is enforced as an exclusion by the underlying actions and does not need to be passed from the caller repository.
+`exclude_dirs` and `exclude_files` are additive inputs. Use them only for repository-specific content such as `logs`, generated outputs, or sensitive runtime files you do not want deployed.
 
 ## Exchange Apply Address Book Policy Example
 
@@ -88,7 +92,7 @@ jobs:
     with:
       runner_group: SCS Domain Controllers
       destination_path: C:\\Scripts\\exchange-apply-address-book-policy
-      exclude_dirs: .git,.github,_work,logs
+      exclude_dirs: logs
       exclude_files: *.crt,Config.json
       timestamp_server: http://timestamp.digicert.com
 ```
