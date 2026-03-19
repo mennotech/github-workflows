@@ -4,7 +4,7 @@ All notable changes to this repository will be documented in this file.
 
 ## [Unreleased]
 
-## [1.0.0] - 2026-03-18
+## [1.0.0] - 2026-03-19
 
 ### Added
 
