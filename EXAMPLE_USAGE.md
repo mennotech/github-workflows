@@ -56,30 +56,25 @@ The caller repository owns orchestration and helper scripts.
 
 The caller repository only supplies:
 
+- explicit code-signing secrets
 - `runner_group`
 - `destination_path`
 - optional additional exclusion overrides
-- explicit code-signing secrets
 
 `.github` is excluded by default by the reusable workflow. Set `include_github_directory: true` only when `.github` content is part of the deployable payload.
 `.git` is enforced as an exclusion by the underlying actions and does not need to be passed from the caller repository.
 `exclude_dirs` and `exclude_files` are additive inputs. Their main purpose is to preserve directories and files that the deployed script generates and still needs after an upgrade. Use them for repository-specific content such as `logs`, generated outputs, certificates, or environment-specific config that should not be overwritten.
 
-## Exchange Apply Address Book Policy Example
-
-Based on the current deployment in `exchange-apply-address-book-policy`, the equivalent caller workflow becomes:
+## PowerShell Script Deployment Example
 
 ```yaml
 name: Sign and Deploy
-
 on:
   workflow_dispatch:
   push:
     branches: ["main"]
-
 permissions:
   contents: read
-
 jobs:
   deploy:
     uses: mennotech/github-workflows/.github/workflows/sign-and-deploy-windows.yml@v1
@@ -89,9 +84,8 @@ jobs:
       CODESIGN_PFX_BASE64: ${{ secrets.CODESIGN_PFX_BASE64 }}
       CODESIGN_PFX_PASSWORD: ${{ secrets.CODESIGN_PFX_PASSWORD }}
     with:
-      runner_group: SCS Domain Controllers
-      destination_path: C:\\Scripts\\exchange-apply-address-book-policy
+      runner_group: Domain Controllers
+      destination_path: C:\\Scripts\\powershell-script-deploy-directory
       exclude_dirs: logs
       exclude_files: *.crt,Config.json
-      timestamp_server: http://timestamp.digicert.com
 ```
