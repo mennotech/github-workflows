@@ -57,7 +57,6 @@ Steps performed:
 5. Verify signatures
 6. Deploy signed files to `destination_path`
 7. Verify deployment state
-8. Execute the deployed script on the Windows runner
 
 ## Required Secrets
 
@@ -100,7 +99,6 @@ secrets:
 
 - `script_repo`: Private script repository (e.g. `mennotech/script`). Required.
 - `script_ref`: Git ref to check out from the script repo — branch (`main`, `testing`) or commit SHA. Required. Controls the deployment ring.
-- `script_path`: Relative path to the executable script inside the script repo (e.g. `scripts/deploy.ps1`). Required.
 - `runner_group`: Self-hosted runner group name. Required.
 - `destination_path`: Windows destination path to deploy to. Required.
 - `exclude_dirs`: Comma-separated additional directory exclusions. Default: empty.
@@ -171,7 +169,6 @@ jobs:
       script_repo: mennotech/script
       # testing ring uses the testing branch; broad ring uses main
       script_ref: ${{ github.event.action == 'deploy-testing' && 'testing' || 'main' }}
-      script_path: scripts/deploy.ps1
       runner_group: Domain Controllers
       destination_path: C:\\Scripts\\MyApp
       exclude_dirs: logs

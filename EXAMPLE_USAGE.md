@@ -128,7 +128,6 @@ jobs:
     with:
       script_repo: mennotech/script
       script_ref: testing
-      script_path: scripts/deploy.ps1
       runner_group: Domain Controllers
       destination_path: C:\\Scripts\\MyApp
       exclude_dirs: logs
@@ -159,7 +158,6 @@ jobs:
     with:
       script_repo: mennotech/script
       script_ref: main
-      script_path: scripts/deploy.ps1
       runner_group: Domain Controllers
       destination_path: C:\\Scripts\\MyApp
       exclude_dirs: logs
@@ -190,7 +188,6 @@ jobs:
     with:
       script_repo: mennotech/script
       script_ref: ${{ github.event.action == 'script-deploy-testing' && 'testing' || 'main' }}
-      script_path: scripts/deploy.ps1
       runner_group: Domain Controllers
       destination_path: C:\\Scripts\\MyApp
       exclude_dirs: logs

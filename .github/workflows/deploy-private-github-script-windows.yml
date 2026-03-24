@@ -41,13 +41,6 @@ on:
         required: true
         type: string
 
-      script_path:
-        description: >
-          Relative path to the executable script inside the script repository
-          (e.g. scripts/deploy.ps1). Executed after deployment.
-        required: true
-        type: string
-
       # ------------------------------------------------------------------ #
       # Runner and deployment target inputs                                 #
       # ------------------------------------------------------------------ #
@@ -248,13 +241,3 @@ jobs:
           exclude_files: ${{ steps.exclusion_config.outputs.exclude_files }}
           robocopy_options: ${{ inputs.robocopy_options }}
           test_only: true
-
-      # Step 9: Execute the deployed and signed script from the destination
-      # path on the Windows runner. The script runs with the runner's identity.
-      - name: Execute script
-        shell: pwsh
-        run: |
-          # Run the deployed script from the destination path to ensure the
-          # signed, deployed version is executed — not the local workspace copy.
-          $scriptFullPath = Join-Path '${{ inputs.destination_path }}' '${{ inputs.script_path }}'
-          & $scriptFullPath
