@@ -6,9 +6,8 @@ All notable changes to this repository will be documented in this file.
 
 ### Added
 
-- `deploy-private-github-script-windows.yml`: New reusable workflow for upstream-triggered auto-deployment of scripts from a private GitHub repository to Windows self-hosted runners.
+- `deploy-github-script-windows.yml`: New reusable workflow for upstream-triggered auto-deployment of scripts from a GitHub repository to Windows self-hosted runners.
   - Supports two deployment rings (`testing` and `broad`) controlled by the caller via `script_ref`.
-  - Fetches the private script repository using a read-only SSH deploy key (`SCRIPT_DEPLOY_KEY`). No fork required.
   - Performs the full sign-and-deploy pipeline (sign, verify, deploy, verify, execute) on the fetched script content.
   - Logs remain in the calling client repository only.
 - Updated `README.md` and `EXAMPLE_USAGE.md` with documentation and example callers for the new workflow.

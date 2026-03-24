@@ -93,7 +93,7 @@ jobs:
 ## Upstream-Triggered Auto-Deploy (Two Rings)
 
 Client repositories that want to auto-deploy scripts from `mennotech/script`
-listen for a `repository_dispatch` event and call the private-script workflow.
+listen for a `repository_dispatch` event and call the script workflow.
 
 Ring selection is controlled by the caller via `script_ref`:
 - **Testing ring**: `script_ref: testing`
@@ -101,8 +101,7 @@ Ring selection is controlled by the caller via `script_ref`:
 
 ### Prerequisites
 
-1. Store a **read-only SSH deploy key** for `mennotech/script` as the repository secret `SCRIPT_DEPLOY_KEY`.
-2. Store `CODESIGN_PFX_BASE64` and `CODESIGN_PFX_PASSWORD` as usual.
+1. Store `CODESIGN_PFX_BASE64` and `CODESIGN_PFX_PASSWORD` as usual.
 
 ### Testing-ring caller (early adopters)
 
@@ -118,11 +117,10 @@ permissions:
 
 jobs:
   deploy:
-    uses: mennotech/github-workflows/.github/workflows/deploy-private-github-script-windows.yml@v1
+    uses: mennotech/github-workflows/.github/workflows/deploy-github-script-windows.yml@v1
     permissions:
       contents: read
     secrets:
-      SCRIPT_DEPLOY_KEY: ${{ secrets.SCRIPT_DEPLOY_KEY }}
       CODESIGN_PFX_BASE64: ${{ secrets.CODESIGN_PFX_BASE64 }}
       CODESIGN_PFX_PASSWORD: ${{ secrets.CODESIGN_PFX_PASSWORD }}
     with:
@@ -148,11 +146,10 @@ permissions:
 
 jobs:
   deploy:
-    uses: mennotech/github-workflows/.github/workflows/deploy-private-github-script-windows.yml@v1
+    uses: mennotech/github-workflows/.github/workflows/deploy-github-script-windows.yml@v1
     permissions:
       contents: read
     secrets:
-      SCRIPT_DEPLOY_KEY: ${{ secrets.SCRIPT_DEPLOY_KEY }}
       CODESIGN_PFX_BASE64: ${{ secrets.CODESIGN_PFX_BASE64 }}
       CODESIGN_PFX_PASSWORD: ${{ secrets.CODESIGN_PFX_PASSWORD }}
     with:
@@ -178,11 +175,10 @@ permissions:
 
 jobs:
   deploy:
-    uses: mennotech/github-workflows/.github/workflows/deploy-private-github-script-windows.yml@v1
+    uses: mennotech/github-workflows/.github/workflows/deploy-github-script-windows.yml@v1
     permissions:
       contents: read
     secrets:
-      SCRIPT_DEPLOY_KEY: ${{ secrets.SCRIPT_DEPLOY_KEY }}
       CODESIGN_PFX_BASE64: ${{ secrets.CODESIGN_PFX_BASE64 }}
       CODESIGN_PFX_PASSWORD: ${{ secrets.CODESIGN_PFX_PASSWORD }}
     with:

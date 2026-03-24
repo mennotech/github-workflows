@@ -68,13 +68,13 @@ jobs:
 
           print('Reusable workflow references expected published actions.')
 
-          deploy_script_workflow = Path(
-              '.github/workflows/deploy-private-github-script-windows.yml'
-          ).read_text(encoding='utf-8')
+            deploy_script_workflow = Path(
+              '.github/workflows/deploy-github-script-windows.yml'
+            ).read_text(encoding='utf-8')
           missing_in_deploy = [ref for ref in required_refs if ref not in deploy_script_workflow]
           if missing_in_deploy:
               raise SystemExit(
-                  f'deploy-private-github-script-windows.yml missing action references: {missing_in_deploy}'
+                    f'deploy-github-script-windows.yml missing action references: {missing_in_deploy}'
               )
 
-          print('deploy-private-github-script-windows.yml references expected published actions.')
+                print('deploy-github-script-windows.yml references expected published actions.')

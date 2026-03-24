@@ -1,11 +1,11 @@
 ---
-# Reusable workflow: Deploy Private GitHub Script (Windows)
+# Reusable workflow: Deploy GitHub Script (Windows)
 #
 # Purpose:
 #   Supports upstream-triggered auto-deployment of a script sourced from a
-#   private GitHub repository (e.g. mennotech/script) to Windows self-hosted
-#   runners. Callers handle repository_dispatch or push triggers and invoke
-#   this workflow via workflow_call.
+#   GitHub repository (e.g. mennotech/script) to Windows self-hosted runners.
+#   Callers handle repository_dispatch or push triggers and invoke this
+#   workflow via workflow_call.
 #
 # Two deployment rings are supported by passing the appropriate script_ref:
 #   - testing ring:  script_ref: testing
@@ -14,12 +14,10 @@
 # Ring selection is the caller's responsibility; this workflow is ring-agnostic.
 #
 # Security:
-#   - Private script repo is accessed via a read-only SSH deploy key.
 #   - Secrets are never echoed.
 #   - Logs remain in the calling client repository only.
-#   - No forks of the script repo are required.
 
-name: Deploy Private GitHub Script (Windows)
+name: Deploy GitHub Script (Windows)
 
 on:
   workflow_call:
@@ -29,7 +27,7 @@ on:
       # ------------------------------------------------------------------ #
       script_repo:
         description: >
-          Private script repository to check out (e.g. mennotech/script).
+          Script repository to check out (e.g. mennotech/script).
         required: true
         type: string
 
@@ -106,12 +104,6 @@ on:
         type: string
 
     secrets:
-      SCRIPT_DEPLOY_KEY:
-        description: >
-          Read-only SSH deploy key for the private script repository. Must have
-          read access to script_repo but no write access.
-        required: true
-
       CODESIGN_PFX_BASE64:
         description: Base64-encoded PFX code-signing certificate.
         required: true
@@ -126,7 +118,7 @@ permissions:
 
 jobs:
   deploy_script:
-    name: Fetch, sign, and deploy private script
+    name: Fetch, sign, and deploy script
     runs-on:
       group: ${{ inputs.runner_group }}
       labels:
@@ -134,23 +126,14 @@ jobs:
         - windows
 
     steps:
-      # Step 1: Check out the calling client repository so that any
-      # client-specific configuration present at the repo root is available.
-      - name: Checkout caller repository
-        uses: actions/checkout@v4
-
-      # Step 2: Check out the private script repository using the read-only
-      # SSH deploy key. The script content is placed in the script/ subdirectory
-      # to keep it isolated from the client repository files.
-      - name: Checkout private script repository
+      # Step 1: Check out the script repository.
+      - name: Checkout script repository
         uses: actions/checkout@v4
         with:
           repository: ${{ inputs.script_repo }}
           ref: ${{ inputs.script_ref }}
-          ssh-key: ${{ secrets.SCRIPT_DEPLOY_KEY }}
-          path: script/
 
-      # Step 3: Build the effective set of directory and file exclusions,
+      # Step 2: Build the effective set of directory and file exclusions,
       # applying the same defaults as sign-and-deploy-windows.yml.
       - name: Resolve effective directory exclusions
         id: exclusion_config
@@ -186,7 +169,7 @@ jobs:
           "exclude_dirs=$($effectiveExcludeDirs -join ',')" >> $env:GITHUB_OUTPUT
           "exclude_files=${{ inputs.exclude_files }}" >> $env:GITHUB_OUTPUT
 
-      # Step 4: Import the Authenticode code-signing certificate onto the runner.
+      # Step 3: Import the Authenticode code-signing certificate onto the runner.
       - name: Import code-signing certificate
         id: import_certificate
         uses: mennotech/github-actions/import-codesigning-cert-windows@v1
@@ -194,12 +177,12 @@ jobs:
           pfx_base64: ${{ secrets.CODESIGN_PFX_BASE64 }}
           pfx_password: ${{ secrets.CODESIGN_PFX_PASSWORD }}
 
-      # Step 5: Sign all matching PowerShell files in the checked-out script
-      # directory. Certificate is cleaned up after signing.
+      # Step 4: Sign all matching PowerShell files in the checked-out
+      # repository. Certificate is cleaned up after signing.
       - name: Sign PowerShell files
         uses: mennotech/github-actions/codesign-files-windows@v1
         with:
-          path: script/
+          path: .
           timestamp_server: ${{ inputs.timestamp_server }}
           recurse: ${{ inputs.recurse }}
           file_match: ${{ inputs.file_match }}
@@ -207,35 +190,35 @@ jobs:
           cert_thumbprint: ${{ steps.import_certificate.outputs.certificate_thumbprint }}
           cleanup_certificate: true
 
-      # Step 6: Verify that all signed files carry a valid signature before
+      # Step 5: Verify that all signed files carry a valid signature before
       # deploying. Fails the job if any file has an invalid or missing signature.
       - name: Verify PowerShell signatures
         uses: mennotech/github-actions/codesign-files-windows@v1
         with:
-          path: script/
+          path: .
           recurse: ${{ inputs.recurse }}
           file_match: ${{ inputs.file_match }}
           exclude_dirs: ${{ steps.exclusion_config.outputs.exclude_dirs }}
           test_only: true
           fail_on_invalid: true
 
-      # Step 7: Deploy signed script files to the target destination path
+      # Step 6: Deploy signed script files to the target destination path
       # using robocopy.
       - name: Deploy files
         uses: mennotech/github-actions/deploy-files-windows@v1
         with:
-          source_path: script/
+          source_path: .
           destination_path: ${{ inputs.destination_path }}
           exclude_dirs: ${{ steps.exclusion_config.outputs.exclude_dirs }}
           exclude_files: ${{ steps.exclusion_config.outputs.exclude_files }}
           robocopy_options: ${{ inputs.robocopy_options }}
 
-      # Step 8: Dry-run robocopy to confirm that destination matches source
+      # Step 7: Dry-run robocopy to confirm that destination matches source
       # after deployment.
       - name: Verify deployment state
         uses: mennotech/github-actions/deploy-files-windows@v1
         with:
-          source_path: script/
+          source_path: .
           destination_path: ${{ inputs.destination_path }}
           exclude_dirs: ${{ steps.exclusion_config.outputs.exclude_dirs }}
           exclude_files: ${{ steps.exclusion_config.outputs.exclude_files }}
