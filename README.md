@@ -31,10 +31,44 @@ Purpose:
 - Deploy files to a Windows target directory
 - Run a dry-run deployment check after deployment
 
+### `deploy-private-github-script-windows`
+
+Reusable workflow path:
+
+```yaml
+uses: mennotech/github-workflows/.github/workflows/deploy-private-github-script-windows.yml@v1
+```
+
+Purpose:
+
+- Support **upstream-triggered auto-deployment** of scripts sourced from a private GitHub repository (e.g. `mennotech/script`) to Windows self-hosted runners.
+- Caller repositories listen for `repository_dispatch` or other triggers and invoke this workflow via `workflow_call`.
+- Scripts are fetched using a read-only SSH deploy key — no fork of the script repository is required.
+- Supports two deployment rings controlled by the `script_ref` input:
+  - **Testing ring**: pass `script_ref: testing`
+  - **Broad ring**: pass `script_ref: main` (or a pinned commit SHA)
+
+Steps performed:
+
+1. Check out the calling client repository
+2. Check out the private script repository (using `SCRIPT_DEPLOY_KEY`) into a `script/` subdirectory
+3. Import the code-signing certificate
+4. Sign PowerShell files in `script/`
+5. Verify signatures
+6. Deploy signed files to `destination_path`
+7. Verify deployment state
+8. Execute the deployed script on the Windows runner
+
 ## Required Secrets
 
-The reusable workflow expects the caller repository to provide these secrets:
+### `sign-and-deploy-windows.yml`
 
+- `CODESIGN_PFX_BASE64`
+- `CODESIGN_PFX_PASSWORD`
+
+### `deploy-private-github-script-windows.yml`
+
+- `SCRIPT_DEPLOY_KEY` — Read-only SSH deploy key for the private script repository
 - `CODESIGN_PFX_BASE64`
 - `CODESIGN_PFX_PASSWORD`
 
@@ -42,13 +76,14 @@ Pass these secrets explicitly from the caller workflow:
 
 ```yaml
 secrets:
+  SCRIPT_DEPLOY_KEY: ${{ secrets.SCRIPT_DEPLOY_KEY }}
   CODESIGN_PFX_BASE64: ${{ secrets.CODESIGN_PFX_BASE64 }}
   CODESIGN_PFX_PASSWORD: ${{ secrets.CODESIGN_PFX_PASSWORD }}
 ```
 
 ## Workflow Inputs
 
-`sign-and-deploy-windows.yml` supports the following caller inputs:
+### `sign-and-deploy-windows.yml`
 
 - `destination_path`: Windows destination path to deploy to. Required.
 - `runner_group`: Self-hosted runner group name. Required.
@@ -61,7 +96,24 @@ secrets:
 - `robocopy_options`: Comma-separated robocopy options. Default: `/R:2,/W:2,/NDL,/NFL,/NP`.
 - `recurse`: Whether signing should recurse into subdirectories. Default: `true`.
 
+### `deploy-private-github-script-windows.yml`
+
+- `script_repo`: Private script repository (e.g. `mennotech/script`). Required.
+- `script_ref`: Git ref to check out from the script repo — branch (`main`, `testing`) or commit SHA. Required. Controls the deployment ring.
+- `script_path`: Relative path to the executable script inside the script repo (e.g. `scripts/deploy.ps1`). Required.
+- `runner_group`: Self-hosted runner group name. Required.
+- `destination_path`: Windows destination path to deploy to. Required.
+- `exclude_dirs`: Comma-separated additional directory exclusions. Default: empty.
+- `include_github_directory`: Include `.github` in signing/deployment. Default: `false`.
+- `exclude_files`: Comma-separated additional file exclusions. Default: empty.
+- `file_match`: Comma-separated PowerShell file glob list for signing. Default: `*.ps1,*.psm1,*.psd1`.
+- `timestamp_server`: Authenticode timestamp server URL. Default: `http://timestamp.digicert.com`.
+- `robocopy_options`: Comma-separated robocopy options. Default: `/R:2,/W:2,/NDL,/NFL,/NP`.
+- `recurse`: Whether signing should recurse into subdirectories. Default: `true`.
+
 ## Example Consumer Workflow
+
+### Standard sign-and-deploy
 
 Application repositories should keep only application-specific configuration:
 
@@ -92,16 +144,51 @@ jobs:
       timestamp_server: http://timestamp.digicert.com
 ```
 
+### Upstream-triggered auto-deploy (two rings)
+
+Client repositories handle `repository_dispatch` and invoke the private-script workflow:
+
+```yaml
+name: Auto-Deploy from Upstream Script Repo
+
+on:
+  repository_dispatch:
+    types: [deploy-testing, deploy-broad]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    uses: mennotech/github-workflows/.github/workflows/deploy-private-github-script-windows.yml@v1
+    permissions:
+      contents: read
+    secrets:
+      SCRIPT_DEPLOY_KEY: ${{ secrets.SCRIPT_DEPLOY_KEY }}
+      CODESIGN_PFX_BASE64: ${{ secrets.CODESIGN_PFX_BASE64 }}
+      CODESIGN_PFX_PASSWORD: ${{ secrets.CODESIGN_PFX_PASSWORD }}
+    with:
+      script_repo: mennotech/script
+      # testing ring uses the testing branch; broad ring uses main
+      script_ref: ${{ github.event.action == 'deploy-testing' && 'testing' || 'main' }}
+      script_path: scripts/deploy.ps1
+      runner_group: Domain Controllers
+      destination_path: C:\\Scripts\\MyApp
+      exclude_dirs: logs
+      exclude_files: Config.json
+```
+
 ## Design Principles
 
 - Reusable workflows own orchestration and guardrails.
 - Composite actions own implementation details.
 - Application repositories own deployment-specific values.
 - Certificate cleanup is explicitly enabled by this workflow to avoid leaving certificates on self-hosted runners.
-- This workflow relies on `mennotech/github-actions@v1` for the low-level signing and deployment mechanics.
+- All workflows rely on `mennotech/github-actions@v1` for the low-level signing and deployment mechanics.
 - `.github` is excluded by default at the workflow layer, but callers can opt in with `include_github_directory: true` when that content is part of the deployable payload.
 - `.git` is enforced as an exclusion by the underlying `mennotech/github-actions` actions, so callers do not need to pass it in workflow inputs.
 - `exclude_dirs` and `exclude_files` are additive caller overrides. Their main purpose is to avoid clobbering generated directories and files that a deployed script needs to keep across upgrades. This workflow supplies the `.github` default at the workflow layer rather than relying on broad defaults in the underlying actions.
+- `deploy-private-github-script-windows.yml` accesses the private script repository with a read-only SSH deploy key and never requires a fork. Logs remain in the client repository. Ring selection (`testing` vs `broad`) is controlled by the caller via `script_ref`.
 
 ## Notes
 

@@ -89,3 +89,110 @@ jobs:
       exclude_dirs: logs
       exclude_files: *.crt,Config.json
 ```
+
+## Upstream-Triggered Auto-Deploy (Two Rings)
+
+Client repositories that want to auto-deploy scripts from `mennotech/script`
+listen for a `repository_dispatch` event and call the private-script workflow.
+
+Ring selection is controlled by the caller via `script_ref`:
+- **Testing ring**: `script_ref: testing`
+- **Broad ring**: `script_ref: main`
+
+### Prerequisites
+
+1. Store a **read-only SSH deploy key** for `mennotech/script` as the repository secret `SCRIPT_DEPLOY_KEY`.
+2. Store `CODESIGN_PFX_BASE64` and `CODESIGN_PFX_PASSWORD` as usual.
+
+### Testing-ring caller (early adopters)
+
+```yaml
+name: Auto-Deploy from Upstream (Testing Ring)
+
+on:
+  repository_dispatch:
+    types: [script-deploy-testing]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    uses: mennotech/github-workflows/.github/workflows/deploy-private-github-script-windows.yml@v1
+    permissions:
+      contents: read
+    secrets:
+      SCRIPT_DEPLOY_KEY: ${{ secrets.SCRIPT_DEPLOY_KEY }}
+      CODESIGN_PFX_BASE64: ${{ secrets.CODESIGN_PFX_BASE64 }}
+      CODESIGN_PFX_PASSWORD: ${{ secrets.CODESIGN_PFX_PASSWORD }}
+    with:
+      script_repo: mennotech/script
+      script_ref: testing
+      script_path: scripts/deploy.ps1
+      runner_group: Domain Controllers
+      destination_path: C:\\Scripts\\MyApp
+      exclude_dirs: logs
+      exclude_files: Config.json
+```
+
+### Broad-ring caller (production default)
+
+```yaml
+name: Auto-Deploy from Upstream (Broad Ring)
+
+on:
+  repository_dispatch:
+    types: [script-deploy-broad]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    uses: mennotech/github-workflows/.github/workflows/deploy-private-github-script-windows.yml@v1
+    permissions:
+      contents: read
+    secrets:
+      SCRIPT_DEPLOY_KEY: ${{ secrets.SCRIPT_DEPLOY_KEY }}
+      CODESIGN_PFX_BASE64: ${{ secrets.CODESIGN_PFX_BASE64 }}
+      CODESIGN_PFX_PASSWORD: ${{ secrets.CODESIGN_PFX_PASSWORD }}
+    with:
+      script_repo: mennotech/script
+      script_ref: main
+      script_path: scripts/deploy.ps1
+      runner_group: Domain Controllers
+      destination_path: C:\\Scripts\\MyApp
+      exclude_dirs: logs
+      exclude_files: Config.json
+```
+
+### Combined caller (ring chosen by dispatch event type)
+
+```yaml
+name: Auto-Deploy from Upstream
+
+on:
+  repository_dispatch:
+    types: [script-deploy-testing, script-deploy-broad]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    uses: mennotech/github-workflows/.github/workflows/deploy-private-github-script-windows.yml@v1
+    permissions:
+      contents: read
+    secrets:
+      SCRIPT_DEPLOY_KEY: ${{ secrets.SCRIPT_DEPLOY_KEY }}
+      CODESIGN_PFX_BASE64: ${{ secrets.CODESIGN_PFX_BASE64 }}
+      CODESIGN_PFX_PASSWORD: ${{ secrets.CODESIGN_PFX_PASSWORD }}
+    with:
+      script_repo: mennotech/script
+      script_ref: ${{ github.event.action == 'script-deploy-testing' && 'testing' || 'main' }}
+      script_path: scripts/deploy.ps1
+      runner_group: Domain Controllers
+      destination_path: C:\\Scripts\\MyApp
+      exclude_dirs: logs
+      exclude_files: Config.json
+```
