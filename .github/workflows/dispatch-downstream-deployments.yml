@@ -120,7 +120,7 @@ jobs:
 
       - name: Build dispatch payload
         id: payload
-        shell: bash
+        shell: pwsh
         env:
           OWNER: ${{ matrix.owner }}
           REPO: ${{ matrix.repo }}
@@ -129,28 +129,22 @@ jobs:
           UPSTREAM_RUN_ATTEMPT: ${{ github.run_attempt }}
           UPSTREAM_SHA: ${{ github.sha }}
         run: |
-          set -euo pipefail
+            $ErrorActionPreference = 'Stop'
 
-          correlation_id="${UPSTREAM_RUN_ID}-${UPSTREAM_RUN_ATTEMPT}-${OWNER}-${REPO}-$(date +%s)"
-          dispatched_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          client_payload="$(jq -cn \
-            --arg correlation_id "${correlation_id}" \
-            --arg upstream_repo "${UPSTREAM_REPO}" \
-            --arg upstream_run_id "${UPSTREAM_RUN_ID}" \
-            --arg upstream_run_attempt "${UPSTREAM_RUN_ATTEMPT}" \
-            --arg upstream_sha "${UPSTREAM_SHA}" \
-            --arg dispatched_at "${dispatched_at}" \
-            '{
-              correlation_id: $correlation_id,
-              upstream_repo: $upstream_repo,
-              upstream_run_id: $upstream_run_id,
-              upstream_run_attempt: $upstream_run_attempt,
-              upstream_sha: $upstream_sha,
-              dispatched_at: $dispatched_at
-            }')"
+            $unixTimestamp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+            $correlationId = "$env:UPSTREAM_RUN_ID-$env:UPSTREAM_RUN_ATTEMPT-$env:OWNER-$env:REPO-$unixTimestamp"
+            $dispatchedAt = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+            $clientPayload = @{
+              correlation_id = $correlationId
+              upstream_repo = $env:UPSTREAM_REPO
+              upstream_run_id = $env:UPSTREAM_RUN_ID
+              upstream_run_attempt = $env:UPSTREAM_RUN_ATTEMPT
+              upstream_sha = $env:UPSTREAM_SHA
+              dispatched_at = $dispatchedAt
+            } | ConvertTo-Json -Compress
 
-          echo "dispatched_at=${dispatched_at}" >> "${GITHUB_OUTPUT}"
-          echo "client_payload=${client_payload}" >> "${GITHUB_OUTPUT}"
+            "dispatched_at=$dispatchedAt" >> $env:GITHUB_OUTPUT
+            "client_payload=$clientPayload" >> $env:GITHUB_OUTPUT
 
       - name: Dispatch event
         id: dispatch_event
@@ -164,14 +158,14 @@ jobs:
 
       - name: Fail on dispatch error
         if: ${{ steps.dispatch_event.outputs.success != 'true' }}
-        shell: bash
+        shell: pwsh
         env:
           OWNER: ${{ matrix.owner }}
           REPO: ${{ matrix.repo }}
           STATUS_CODE: ${{ steps.dispatch_event.outputs.status_code }}
         run: |
-          echo "Dispatch failed for ${OWNER}/${REPO} with HTTP ${STATUS_CODE}" >&2
-          exit 1
+            $ErrorActionPreference = 'Stop'
+            throw "Dispatch failed for $env:OWNER/$env:REPO with HTTP $env:STATUS_CODE"
 
       - name: Wait for downstream run
         id: wait_run
@@ -187,7 +181,7 @@ jobs:
 
       - name: Fail on downstream timeout or failure
         if: ${{ inputs.wait_for_downstream && steps.dispatch_event.outputs.success == 'true' }}
-        shell: bash
+        shell: pwsh
         env:
           OWNER: ${{ matrix.owner }}
           REPO: ${{ matrix.repo }}
@@ -195,20 +189,20 @@ jobs:
           CONCLUSION: ${{ steps.wait_run.outputs.conclusion }}
           RUN_URL: ${{ steps.wait_run.outputs.run_url }}
         run: |
-          set -euo pipefail
+            $ErrorActionPreference = 'Stop'
 
-          if [ "${TIMED_OUT}" = "true" ]; then
-            echo "Timed out waiting for downstream run for ${OWNER}/${REPO}" >&2
-            exit 1
-          fi
+            if ($env:TIMED_OUT -eq 'true') {
+              throw "Timed out waiting for downstream run for $env:OWNER/$env:REPO"
+            }
 
-          if [ "${CONCLUSION}" != "success" ]; then
-            echo "Downstream run failed for ${OWNER}/${REPO} (conclusion=${CONCLUSION})" >&2
-            if [ -n "${RUN_URL}" ]; then
-              echo "Run URL: ${RUN_URL}" >&2
-            fi
-            exit 1
-          fi
+            if ($env:CONCLUSION -ne 'success') {
+              $message = "Downstream run failed for $env:OWNER/$env:REPO (conclusion=$env:CONCLUSION)"
+              if (-not [string]::IsNullOrWhiteSpace($env:RUN_URL)) {
+                $message = "$message`nRun URL: $env:RUN_URL"
+              }
+
+              throw $message
+            }
 
   # ======================================================================= #
   # Job 3: Aggregate result for the workflow-level output                   #
@@ -222,9 +216,10 @@ jobs:
     steps:
       - name: Set result output
         id: result
-        shell: bash
+        shell: pwsh
         env:
           DISPATCH_RESULT: ${{ needs.dispatch.result }}
         run: |
-          echo "dispatch_result=${DISPATCH_RESULT}" >> "${GITHUB_OUTPUT}"
-          echo "Dispatch matrix result: ${DISPATCH_RESULT}"
+            $ErrorActionPreference = 'Stop'
+            "dispatch_result=$env:DISPATCH_RESULT" >> $env:GITHUB_OUTPUT
+            Write-Host "Dispatch matrix result: $env:DISPATCH_RESULT"
