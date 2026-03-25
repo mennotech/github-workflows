@@ -85,7 +85,7 @@ on:
 
 jobs:
   # ======================================================================= #
-  # Job 1: Build per-repo matrix from the downstream_repos input             #
+  # Job 1: Build per-repo matrix from the downstream_repos input            #
   # ======================================================================= #
   build_matrix:
     runs-on: ubuntu-latest
@@ -99,7 +99,7 @@ jobs:
           downstream_repos: ${{ inputs.downstream_repos }}
 
   # ======================================================================= #
-  # Job 2: Dispatch (and optionally poll) each repo                          #
+  # Job 2: Dispatch (and optionally poll) each repo                         #
   # ======================================================================= #
   dispatch:
     needs: build_matrix
