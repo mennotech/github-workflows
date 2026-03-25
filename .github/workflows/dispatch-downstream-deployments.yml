@@ -94,7 +94,7 @@ jobs:
     steps:
       - name: Build repo matrix
         id: build
-        uses: mennotech/github-actions/build-repo-matrix@feature/dispatch-repository-event
+        uses: mennotech/github-actions/build-repo-matrix@v1
         with:
           downstream_repos: ${{ inputs.downstream_repos }}
 
@@ -148,7 +148,7 @@ jobs:
 
       - name: Dispatch event
         id: dispatch_event
-        uses: mennotech/github-actions/dispatch-repository-event@feature/dispatch-repository-event
+        uses: mennotech/github-actions/dispatch-repository-event@v1
         with:
           token: ${{ steps.app_token.outputs.token }}
           owner: ${{ matrix.owner }}
@@ -170,7 +170,7 @@ jobs:
       - name: Wait for downstream run
         id: wait_run
         if: ${{ inputs.wait_for_downstream && steps.dispatch_event.outputs.success == 'true' }}
-        uses: mennotech/github-actions/wait-for-downstream-run@feature/dispatch-repository-event
+        uses: mennotech/github-actions/wait-for-downstream-run@v1
         with:
           token: ${{ steps.app_token.outputs.token }}
           owner: ${{ matrix.owner }}
