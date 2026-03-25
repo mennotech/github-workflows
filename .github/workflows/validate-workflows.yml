@@ -55,15 +55,27 @@ jobs:
         run: |
           from pathlib import Path
 
-          workflow = Path('.github/workflows/sign-and-deploy-windows.yml').read_text(encoding='utf-8')
-          required_refs = [
-              'mennotech/github-actions/import-codesigning-cert-windows@v1',
-              'mennotech/github-actions/codesign-files-windows@v1',
-              'mennotech/github-actions/deploy-files-windows@v1',
-          ]
+          checks = {
+              '.github/workflows/sign-and-deploy-windows.yml': [
+                  'mennotech/github-actions/import-codesigning-cert-windows@v1',
+                  'mennotech/github-actions/codesign-files-windows@v1',
+                  'mennotech/github-actions/deploy-files-windows@v1',
+              ],
+              '.github/workflows/dispatch-downstream-deployments.yml': [
+                  'mennotech/github-actions/build-repo-matrix@v1',
+                  'mennotech/github-actions/dispatch-repository-event@v1',
+                  'mennotech/github-actions/wait-for-downstream-run@v1',
+              ],
+          }
 
-          missing = [ref for ref in required_refs if ref not in workflow]
-          if missing:
-              raise SystemExit(f'Missing action references: {missing}')
+          all_missing = {}
+          for workflow_path, required_refs in checks.items():
+              content = Path(workflow_path).read_text(encoding='utf-8')
+              missing = [ref for ref in required_refs if ref not in content]
+              if missing:
+                  all_missing[workflow_path] = missing
+
+          if all_missing:
+              raise SystemExit(f'Missing action references: {all_missing}')
 
           print('Reusable workflow references expected published actions.')
