@@ -64,15 +64,15 @@ Purpose:
 
 Required secrets:
 
-- `app_id`
-- `app_private_key`
+- `dispatch_app_id`
+- `dispatch_private_key`
 
 Secret mapping example:
 
 ```yaml
 secrets:
-  app_id: ${{ secrets.GH_APP_ID }}
-  app_private_key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+  dispatch_app_id: ${{ secrets.GH_APP_ID }}
+  dispatch_private_key: ${{ secrets.GH_APP_PRIVATE_KEY }}
 ```
 
 ## Workflow Inputs
@@ -146,8 +146,8 @@ jobs:
     permissions:
       contents: read
     secrets:
-      app_id: ${{ secrets.GH_APP_ID }}
-      app_private_key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+      dispatch_app_id: ${{ secrets.GH_APP_ID }}
+      dispatch_private_key: ${{ secrets.GH_APP_PRIVATE_KEY }}
     with:
       downstream_repos: ${{ vars.DOWNSTREAM_REPOS }}
       event_type: script-deploy-testing

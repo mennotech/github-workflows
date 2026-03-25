@@ -18,7 +18,7 @@ All notable changes to this repository will be documented in this file.
 
 ### Notes
 
-- Workflow requires GitHub App credentials (`app_id` and `app_private_key`) to mint per-org dispatch tokens
+- Workflow requires GitHub App credentials (`dispatch_app_id` and `dispatch_private_key`) to mint per-org dispatch tokens
 - Workflow output `dispatch_result` summarizes the overall matrix outcome for callers
 
 ## [1.0.0] - 2026-03-19

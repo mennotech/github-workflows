@@ -68,11 +68,11 @@ on:
         type: number
 
     secrets:
-      app_id:
+      dispatch_app_id:
         description: 'GitHub App ID used to mint per-org dispatch tokens.'
         required: true
 
-      app_private_key:
+      dispatch_private_key:
         description: 'GitHub App private key (PEM format).'
         required: true
 
@@ -113,8 +113,8 @@ jobs:
         id: app_token
         uses: actions/create-github-app-token@v1
         with:
-          app-id: ${{ secrets.app_id }}
-          private-key: ${{ secrets.app_private_key }}
+          app-id: ${{ secrets.dispatch_app_id }}
+          private-key: ${{ secrets.dispatch_private_key }}
           owner: ${{ matrix.owner }}
           repositories: ${{ matrix.repo }}
 
