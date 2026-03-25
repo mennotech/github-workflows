@@ -1,0 +1,305 @@
+---
+# Reusable workflow: Dispatch Downstream Deployments
+#
+# Purpose:
+#   Dispatches repository_dispatch events to one or more downstream repositories
+#   and optionally polls each downstream workflow run until it completes.
+#
+#   Callers pass the DOWNSTREAM_REPOS variable (newline-separated org/repo list),
+#   an event type string, and a GitHub App token secret pair.  The workflow mints
+#   a per-org GitHub App token, builds an org-keyed matrix, then dispatches and
+#   (optionally) polls each repo in parallel across matrix legs.
+#
+# Security:
+#   - App private key secret is never echoed.
+#   - Dispatch token is scoped per-org via actions/create-github-app-token.
+
+name: Dispatch Downstream Deployments
+
+on:
+  workflow_call:
+    inputs:
+      # ------------------------------------------------------------------ #
+      # Downstream repository list                                          #
+      # ------------------------------------------------------------------ #
+      downstream_repos:
+        description: >
+          Newline-separated list of downstream repositories in org/repo format
+          (e.g. "acme/scripts\nacme/tools"). Passed as vars.DOWNSTREAM_REPOS
+          from the calling workflow.
+        required: true
+        type: string
+
+      # ------------------------------------------------------------------ #
+      # Dispatch configuration                                              #
+      # ------------------------------------------------------------------ #
+      event_type:
+        description: >
+          The repository_dispatch event type string to send (e.g.
+          'script-deploy-testing' or 'script-deploy-broad').
+        required: true
+        type: string
+
+      # ------------------------------------------------------------------ #
+      # Polling configuration                                               #
+      # ------------------------------------------------------------------ #
+      wait_for_downstream:
+        description: >
+          When true, poll each downstream repository until its triggered
+          workflow run completes (or the timeout is reached).
+        required: false
+        default: true
+        type: boolean
+
+      wait_timeout_seconds:
+        description: >
+          Maximum seconds to wait for each downstream run to appear and
+          complete. Only used when wait_for_downstream is true.
+        required: false
+        default: 1200
+        type: number
+
+      poll_interval_seconds:
+        description: >
+          Seconds between polling attempts. Only used when
+          wait_for_downstream is true.
+        required: false
+        default: 20
+        type: number
+
+    secrets:
+      app_id:
+        description: 'GitHub App ID used to mint per-org dispatch tokens.'
+        required: true
+
+      app_private_key:
+        description: 'GitHub App private key (PEM format).'
+        required: true
+
+    outputs:
+      dispatch_result:
+        description: >
+          Overall result of the dispatch matrix: 'success' if all repos
+          dispatched and completed successfully, 'failure' otherwise.
+        value: ${{ jobs.summarize.outputs.dispatch_result }}
+
+jobs:
+  # ======================================================================= #
+  # Job 1: Build org-keyed matrix from the downstream_repos input           #
+  # ======================================================================= #
+  build_matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.build.outputs.matrix }}
+    steps:
+      - name: Build org matrix
+        id: build
+        shell: bash
+        env:
+          DOWNSTREAM_REPOS: ${{ inputs.downstream_repos }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${DOWNSTREAM_REPOS}" ]; then
+            echo "downstream_repos input is empty." >&2
+            exit 1
+          fi
+
+          # Build a JSON object: { "org": ["repo1","repo2"] }
+          json='{}'
+          while IFS= read -r repo; do
+            repo="$(echo "$repo" | xargs)"
+            [ -z "$repo" ] && continue
+
+            org="${repo%%/*}"
+            name="${repo##*/}"
+
+            json="$(echo "$json" | jq --arg org "$org" --arg name "$name" '
+              .[$org] = ((.[$org] // []) + [$name])
+            ')"
+          done <<< "${DOWNSTREAM_REPOS}"
+
+          # Convert to matrix include list: [{"owner":"org","repos":"r1,r2"}]
+          matrix="$(echo "$json" | jq -c '
+            to_entries
+            | map({owner: .key, repos: (.value | join(","))})
+          ')"
+
+          echo "matrix=${matrix}" >> "${GITHUB_OUTPUT}"
+
+  # ======================================================================= #
+  # Job 2: Dispatch (and optionally poll) each org's repos                  #
+  # ======================================================================= #
+  dispatch:
+    needs: build_matrix
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.build_matrix.outputs.matrix) }}
+    steps:
+      - name: Create app token for ${{ matrix.owner }}
+        id: app_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.app_id }}
+          private-key: ${{ secrets.app_private_key }}
+          owner: ${{ matrix.owner }}
+          repositories: ${{ matrix.repos }}
+
+      - name: Dispatch to repos in ${{ matrix.owner }}
+        id: dispatch_loop
+        shell: bash
+        env:
+          DISPATCH_TOKEN: ${{ steps.app_token.outputs.token }}
+          OWNER: ${{ matrix.owner }}
+          REPOS: ${{ matrix.repos }}
+          EVENT_TYPE: ${{ inputs.event_type }}
+          WAIT_FOR_DOWNSTREAM: ${{ inputs.wait_for_downstream }}
+          WAIT_TIMEOUT_SECONDS: ${{ inputs.wait_timeout_seconds }}
+          POLL_INTERVAL_SECONDS: ${{ inputs.poll_interval_seconds }}
+          UPSTREAM_REPO: ${{ github.repository }}
+          UPSTREAM_RUN_ID: ${{ github.run_id }}
+          UPSTREAM_RUN_ATTEMPT: ${{ github.run_attempt }}
+          UPSTREAM_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          failures=0
+          successes=0
+          IFS=',' read -r -a repos <<< "${REPOS}"
+
+          for name in "${repos[@]}"; do
+            name="$(echo "$name" | xargs)"
+            [ -z "$name" ] && continue
+
+            correlation_id="${UPSTREAM_RUN_ID}-${UPSTREAM_RUN_ATTEMPT}-${OWNER}-${name}-$(date +%s)"
+            dispatched_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+            client_payload="$(jq -cn \
+              --arg correlation_id "${correlation_id}" \
+              --arg upstream_repo "${UPSTREAM_REPO}" \
+              --arg upstream_run_id "${UPSTREAM_RUN_ID}" \
+              --arg upstream_run_attempt "${UPSTREAM_RUN_ATTEMPT}" \
+              --arg upstream_sha "${UPSTREAM_SHA}" \
+              --arg dispatched_at "${dispatched_at}" \
+              '{
+                correlation_id: $correlation_id,
+                upstream_repo: $upstream_repo,
+                upstream_run_id: $upstream_run_id,
+                upstream_run_attempt: $upstream_run_attempt,
+                upstream_sha: $upstream_sha,
+                dispatched_at: $dispatched_at
+              }')"
+
+            echo "Dispatching ${EVENT_TYPE} to ${OWNER}/${name}"
+            response_file="$(mktemp)"
+            status_code="$(curl -sS -o "${response_file}" -w "%{http_code}" -X POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${DISPATCH_TOKEN}" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${OWNER}/${name}/dispatches" \
+              -d "$(jq -cn --arg et "${EVENT_TYPE}" --argjson cp "${client_payload}" \
+                '{event_type: $et, client_payload: $cp}')")"
+
+            if [ "${status_code}" != "204" ]; then
+              echo "Dispatch FAILED for ${OWNER}/${name} (HTTP ${status_code}):"
+              cat "${response_file}"
+              rm -f "${response_file}"
+              failures=$((failures + 1))
+              continue
+            fi
+
+            rm -f "${response_file}"
+            echo "Dispatch OK for ${OWNER}/${name}"
+
+            if [ "${WAIT_FOR_DOWNSTREAM}" != "true" ]; then
+              successes=$((successes + 1))
+              continue
+            fi
+
+            # ---- Poll for downstream run completion ---- #
+            echo "Polling downstream workflow run for ${OWNER}/${name}"
+            timeout_at=$(( $(date +%s) + WAIT_TIMEOUT_SECONDS ))
+            found_run=0
+            run_finished=0
+
+            while [ "$(date +%s)" -lt "${timeout_at}" ]; do
+              runs_json="$(curl -sS \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer ${DISPATCH_TOKEN}" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "https://api.github.com/repos/${OWNER}/${name}/actions/runs?event=repository_dispatch&per_page=50")"
+
+              selected_run="$(echo "${runs_json}" | jq -c --arg since "${dispatched_at}" '
+                .workflow_runs
+                | map(select(.created_at >= $since))
+                | sort_by(.created_at)
+                | reverse
+                | .[0] // empty
+              ')"
+
+              if [ -n "${selected_run}" ]; then
+                found_run=1
+                run_id="$(echo "${selected_run}" | jq -r '.id')"
+                run_name="$(echo "${selected_run}" | jq -r '.name')"
+                run_status="$(echo "${selected_run}" | jq -r '.status')"
+                run_conclusion="$(echo "${selected_run}" | jq -r '.conclusion // "null"')"
+                run_url="$(echo "${selected_run}" | jq -r '.html_url')"
+
+                echo "  run id=${run_id} name=${run_name} status=${run_status} conclusion=${run_conclusion}"
+                echo "  Run URL: ${run_url}"
+
+                if [ "${run_status}" = "completed" ]; then
+                  run_finished=1
+                  if [ "${run_conclusion}" = "success" ]; then
+                    echo "Downstream run succeeded for ${OWNER}/${name}"
+                    successes=$((successes + 1))
+                  else
+                    echo "Downstream run FAILED (${run_conclusion}) for ${OWNER}/${name}"
+                    failures=$((failures + 1))
+                  fi
+                  break
+                fi
+              else
+                remaining=$(( timeout_at - $(date +%s) ))
+                echo "No run found yet for ${OWNER}/${name};" \
+                  "waiting ${POLL_INTERVAL_SECONDS}s (${remaining}s remaining)"
+              fi
+
+              sleep "${POLL_INTERVAL_SECONDS}"
+            done
+
+            if [ "${found_run}" = "0" ]; then
+              echo "Timed out waiting for run to appear for ${OWNER}/${name}"
+              failures=$((failures + 1))
+            elif [ "${run_finished}" = "0" ]; then
+              echo "Timed out waiting for run completion for ${OWNER}/${name}"
+              failures=$((failures + 1))
+            fi
+          done
+
+          echo "Dispatch summary: successes=${successes} failures=${failures}"
+
+          if [ "${failures}" -gt 0 ]; then
+            echo "${failures} dispatch and/or downstream workflow check(s) failed." >&2
+            exit 1
+          fi
+
+  # ======================================================================= #
+  # Job 3: Aggregate result for the workflow-level output                   #
+  # ======================================================================= #
+  summarize:
+    needs: dispatch
+    runs-on: ubuntu-latest
+    if: always()
+    outputs:
+      dispatch_result: ${{ steps.result.outputs.dispatch_result }}
+    steps:
+      - name: Set result output
+        id: result
+        shell: bash
+        env:
+          DISPATCH_RESULT: ${{ needs.dispatch.result }}
+        run: |
+          echo "dispatch_result=${DISPATCH_RESULT}" >> "${GITHUB_OUTPUT}"
+          echo "Dispatch matrix result: ${DISPATCH_RESULT}"
