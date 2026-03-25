@@ -92,34 +92,11 @@ jobs:
     outputs:
       matrix: ${{ steps.build.outputs.matrix }}
     steps:
-      - name: Build org matrix
+      - name: Build repo matrix
         id: build
-        shell: bash
-        env:
-          DOWNSTREAM_REPOS: ${{ inputs.downstream_repos }}
-        run: |
-          set -euo pipefail
-
-          if [ -z "${DOWNSTREAM_REPOS}" ]; then
-            echo "downstream_repos input is empty." >&2
-            exit 1
-          fi
-
-          # Build a matrix include list: [{"owner":"org","repo":"name"}]
-          matrix='[]'
-          while IFS= read -r repo; do
-            repo="$(echo "$repo" | xargs)"
-            [ -z "$repo" ] && continue
-
-            org="${repo%%/*}"
-            name="${repo##*/}"
-
-            matrix="$(echo "$matrix" | jq --arg org "$org" --arg name "$name" '
-              . + [{owner: $org, repo: $name}]
-            ')"
-          done <<< "${DOWNSTREAM_REPOS}"
-
-          echo "matrix=${matrix}" >> "${GITHUB_OUTPUT}"
+        uses: mennotech/github-actions/build-repo-matrix@feature/dispatch-repository-event
+        with:
+          downstream_repos: ${{ inputs.downstream_repos }}
 
   # ======================================================================= #
   # Job 2: Dispatch (and optionally poll) each repo                          #
