@@ -12,10 +12,6 @@ All notable changes to this repository will be documented in this file.
 - Support for dispatching `repository_dispatch` events to multiple downstream repositories via matrix fan-out
 - Optional downstream run polling with configurable timeout and poll interval inputs
 
-### Changed
-
-- Inline scripting in the downstream dispatch workflow now uses `pwsh` instead of `bash`
-
 ### Notes
 
 - Workflow requires GitHub App credentials (`dispatch_app_id` and `dispatch_private_key`) to mint per-org dispatch tokens

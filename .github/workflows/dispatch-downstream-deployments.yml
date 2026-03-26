@@ -79,9 +79,16 @@ on:
     outputs:
       dispatch_result:
         description: >
-          Overall result of the dispatch matrix: 'success' if all repos
-          dispatched and completed successfully, 'failure' otherwise.
+          Result of the dispatch matrix job, taken directly from
+          needs.dispatch.result. Possible values are 'success', 'failure',
+          'cancelled', and 'skipped'. When wait_for_downstream is false,
+          'success' only indicates that all dispatch events were sent
+          successfully — it does not reflect whether downstream workflow
+          runs completed or succeeded.
         value: ${{ jobs.summarize.outputs.dispatch_result }}
+
+permissions:
+  contents: read
 
 jobs:
   # ======================================================================= #
