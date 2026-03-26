@@ -1,0 +1,232 @@
+---
+# Reusable workflow: Dispatch Downstream Deployments
+#
+# Purpose:
+#   Dispatches repository_dispatch events to one or more downstream repositories
+#   and optionally polls each downstream workflow run until it completes.
+#
+#   Callers pass the DOWNSTREAM_REPOS variable (newline-separated org/repo list),
+#   an event type string, and a GitHub App token secret pair. The workflow mints
+#   a per-repo GitHub App token and delegates dispatch/poll mechanics to
+#   composite actions from mennotech/github-actions.
+#
+# Security:
+#   - App private key secret is never echoed.
+#   - Dispatch token is scoped per-org via actions/create-github-app-token.
+
+name: Dispatch Downstream Deployments
+
+on:
+  workflow_call:
+    inputs:
+      # ------------------------------------------------------------------ #
+      # Downstream repository list                                          #
+      # ------------------------------------------------------------------ #
+      downstream_repos:
+        description: >
+          Newline-separated list of downstream repositories in org/repo format
+          (e.g. "acme/scripts\nacme/tools"). Passed as vars.DOWNSTREAM_REPOS
+          from the calling workflow.
+        required: true
+        type: string
+
+      # ------------------------------------------------------------------ #
+      # Dispatch configuration                                              #
+      # ------------------------------------------------------------------ #
+      event_type:
+        description: >
+          The repository_dispatch event type string to send (e.g.
+          'script-deploy-testing' or 'script-deploy-broad').
+        required: true
+        type: string
+
+      # ------------------------------------------------------------------ #
+      # Polling configuration                                               #
+      # ------------------------------------------------------------------ #
+      wait_for_downstream:
+        description: >
+          When true, poll each downstream repository until its triggered
+          workflow run completes (or the timeout is reached).
+        required: false
+        default: true
+        type: boolean
+
+      wait_timeout_seconds:
+        description: >
+          Maximum seconds to wait for each downstream run to appear and
+          complete. Only used when wait_for_downstream is true.
+        required: false
+        default: 1200
+        type: number
+
+      poll_interval_seconds:
+        description: >
+          Seconds between polling attempts. Only used when
+          wait_for_downstream is true.
+        required: false
+        default: 20
+        type: number
+
+    secrets:
+      dispatch_app_id:
+        description: 'GitHub App ID used to mint per-org dispatch tokens.'
+        required: true
+
+      dispatch_private_key:
+        description: 'GitHub App private key (PEM format).'
+        required: true
+
+    outputs:
+      dispatch_result:
+        description: >
+          Result of the dispatch matrix job, taken directly from
+          needs.dispatch.result. Possible values are 'success', 'failure',
+          'cancelled', and 'skipped'. When wait_for_downstream is false,
+          'success' only indicates that all dispatch events were sent
+          successfully — it does not reflect whether downstream workflow
+          runs completed or succeeded.
+        value: ${{ jobs.summarize.outputs.dispatch_result }}
+
+permissions:
+  contents: read
+
+jobs:
+  # ======================================================================= #
+  # Job 1: Build per-repo matrix from the downstream_repos input            #
+  # ======================================================================= #
+  build_matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.build.outputs.matrix }}
+    steps:
+      - name: Build repo matrix
+        id: build
+        uses: mennotech/github-actions/build-repo-matrix@v1
+        with:
+          downstream_repos: ${{ inputs.downstream_repos }}
+
+  # ======================================================================= #
+  # Job 2: Dispatch (and optionally poll) each repo                         #
+  # ======================================================================= #
+  dispatch:
+    needs: build_matrix
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.build_matrix.outputs.matrix) }}
+    steps:
+      - name: Create app token for ${{ matrix.owner }}/${{ matrix.repo }}
+        id: app_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.dispatch_app_id }}
+          private-key: ${{ secrets.dispatch_private_key }}
+          owner: ${{ matrix.owner }}
+          repositories: ${{ matrix.repo }}
+
+      - name: Build dispatch payload
+        id: payload
+        shell: pwsh
+        env:
+          OWNER: ${{ matrix.owner }}
+          REPO: ${{ matrix.repo }}
+          UPSTREAM_REPO: ${{ github.repository }}
+          UPSTREAM_RUN_ID: ${{ github.run_id }}
+          UPSTREAM_RUN_ATTEMPT: ${{ github.run_attempt }}
+          UPSTREAM_SHA: ${{ github.sha }}
+        run: |
+            $ErrorActionPreference = 'Stop'
+
+            $unixTimestamp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+            $correlationId = "$env:UPSTREAM_RUN_ID-$env:UPSTREAM_RUN_ATTEMPT-$env:OWNER-$env:REPO-$unixTimestamp"
+            $dispatchedAt = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+            $clientPayload = @{
+              correlation_id = $correlationId
+              upstream_repo = $env:UPSTREAM_REPO
+              upstream_run_id = $env:UPSTREAM_RUN_ID
+              upstream_run_attempt = $env:UPSTREAM_RUN_ATTEMPT
+              upstream_sha = $env:UPSTREAM_SHA
+              dispatched_at = $dispatchedAt
+            } | ConvertTo-Json -Compress
+
+            "dispatched_at=$dispatchedAt" >> $env:GITHUB_OUTPUT
+            "client_payload=$clientPayload" >> $env:GITHUB_OUTPUT
+
+      - name: Dispatch event
+        id: dispatch_event
+        uses: mennotech/github-actions/dispatch-repository-event@v1
+        with:
+          token: ${{ steps.app_token.outputs.token }}
+          owner: ${{ matrix.owner }}
+          repo: ${{ matrix.repo }}
+          event_type: ${{ inputs.event_type }}
+          client_payload: ${{ steps.payload.outputs.client_payload }}
+
+      - name: Fail on dispatch error
+        if: ${{ steps.dispatch_event.outputs.success != 'true' }}
+        shell: pwsh
+        env:
+          OWNER: ${{ matrix.owner }}
+          REPO: ${{ matrix.repo }}
+          STATUS_CODE: ${{ steps.dispatch_event.outputs.status_code }}
+        run: |
+            $ErrorActionPreference = 'Stop'
+            throw "Dispatch failed for $env:OWNER/$env:REPO with HTTP $env:STATUS_CODE"
+
+      - name: Wait for downstream run
+        id: wait_run
+        if: ${{ inputs.wait_for_downstream && steps.dispatch_event.outputs.success == 'true' }}
+        uses: mennotech/github-actions/wait-for-downstream-run@v1
+        with:
+          token: ${{ steps.app_token.outputs.token }}
+          owner: ${{ matrix.owner }}
+          repo: ${{ matrix.repo }}
+          dispatched_at: ${{ steps.payload.outputs.dispatched_at }}
+          timeout_seconds: ${{ inputs.wait_timeout_seconds }}
+          poll_interval_seconds: ${{ inputs.poll_interval_seconds }}
+
+      - name: Fail on downstream timeout or failure
+        if: ${{ inputs.wait_for_downstream && steps.dispatch_event.outputs.success == 'true' }}
+        shell: pwsh
+        env:
+          OWNER: ${{ matrix.owner }}
+          REPO: ${{ matrix.repo }}
+          TIMED_OUT: ${{ steps.wait_run.outputs.timed_out }}
+          CONCLUSION: ${{ steps.wait_run.outputs.conclusion }}
+          RUN_URL: ${{ steps.wait_run.outputs.run_url }}
+        run: |
+            $ErrorActionPreference = 'Stop'
+
+            if ($env:TIMED_OUT -eq 'true') {
+              throw "Timed out waiting for downstream run for $env:OWNER/$env:REPO"
+            }
+
+            if ($env:CONCLUSION -ne 'success') {
+              $message = "Downstream run failed for $env:OWNER/$env:REPO (conclusion=$env:CONCLUSION)"
+              if (-not [string]::IsNullOrWhiteSpace($env:RUN_URL)) {
+                $message = "$message`nRun URL: $env:RUN_URL"
+              }
+
+              throw $message
+            }
+
+  # ======================================================================= #
+  # Job 3: Aggregate result for the workflow-level output                   #
+  # ======================================================================= #
+  summarize:
+    needs: dispatch
+    runs-on: ubuntu-latest
+    if: always()
+    outputs:
+      dispatch_result: ${{ steps.result.outputs.dispatch_result }}
+    steps:
+      - name: Set result output
+        id: result
+        shell: pwsh
+        env:
+          DISPATCH_RESULT: ${{ needs.dispatch.result }}
+        run: |
+            $ErrorActionPreference = 'Stop'
+            "dispatch_result=$env:DISPATCH_RESULT" >> $env:GITHUB_OUTPUT
+            Write-Host "Dispatch matrix result: $env:DISPATCH_RESULT"

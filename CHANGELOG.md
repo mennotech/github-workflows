@@ -4,6 +4,19 @@ All notable changes to this repository will be documented in this file.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-03-25
+
+### Added
+
+- New reusable workflow `.github/workflows/dispatch-downstream-deployments.yml`
+- Support for dispatching `repository_dispatch` events to multiple downstream repositories via matrix fan-out
+- Optional downstream run polling with configurable timeout and poll interval inputs
+
+### Notes
+
+- Workflow requires GitHub App credentials (`dispatch_app_id` and `dispatch_private_key`) to mint per-org dispatch tokens
+- Workflow output `dispatch_result` summarizes the overall matrix outcome for callers
+
 ## [1.0.0] - 2026-03-19
 
 ### Added
